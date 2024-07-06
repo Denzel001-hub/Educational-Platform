@@ -6,6 +6,7 @@ module educational_platform::educational_platform {
     use sui::object::new;
     use sui::balance::{Balance, zero, value as balance_value};
     use sui::tx_context::sender;
+    use sui::table::{Self, Table};
 
     // Constants for error codes
     const Error_Invalid_Amount: u64 = 2;
@@ -29,6 +30,7 @@ module educational_platform::educational_platform {
     public struct Course has key, store {
         id: UID,
         course_id: ID,
+        students: Table<address, bool>,
         name: String,
         details: String,
         price: u64,
@@ -183,6 +185,7 @@ module educational_platform::educational_platform {
         let course = Course {  // Create new course object
             id: course_uid,
             course_id: inner,  // Initial course ID (to be updated)
+            students: table::new(ctx),
             name: name,
             details: details,
             price: price,
