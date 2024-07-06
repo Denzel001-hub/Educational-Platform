@@ -283,8 +283,7 @@ module educational_platform::educational_platform {
         ctx: &mut TxContext      // Transaction context
     ) {
         assert!(object::id(course) == cap.`for`, Error_Not_owner);
-        assert!(amount > 0 && amount <= balance_value(&course.balance), Error_Invalid_Amount);  // Validate withdrawal amount
-
+        
         let take_coin = take(&mut course.balance, amount, ctx);  // Take funds from course balance
         transfer::public_transfer(take_coin, recipient);  // Transfer funds to recipient
 
