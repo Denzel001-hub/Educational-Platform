@@ -28,7 +28,7 @@ module educational_platform::educational_platform {
     // Course struct definition
     public struct Course has key, store {
         id: UID,
-        course_id: u64,
+        course_id: ID,
         name: String,
         details: String,
         price: u64,
@@ -47,7 +47,7 @@ module educational_platform::educational_platform {
     // EnrolledCourse struct definition
     public struct EnrolledCourse has key {
         id: UID,
-        course_id: u64,
+        course_id: ID,
         student: address
     }
 
@@ -81,31 +81,31 @@ module educational_platform::educational_platform {
 
     // CourseCreated event
     public struct CourseCreated has copy, drop {
-        course_id: u64,
+        course_id: ID,
         creator: address,
     }
 
     // CourseEnrolled event
     public struct CourseEnrolled has copy, drop {
-        course_id: u64,
+        course_id: ID,
         student: address,
     }
 
     // CourseCompleted event
     public struct CourseCompleted has copy, drop {
-        course_id: u64,
+        course_id: ID,
         student: address,
     }
 
     // CourseUpdated event
     public struct CourseUpdated has copy, drop {
-        course_id: u64,
+        course_id: ID,
         new_details: String,
     }
 
     // CourseUnlisted event
     public struct CourseUnlisted has copy, drop {
-        course_id: u64,
+        course_id: ID,
     }
 
     // FundWithdrawal event
@@ -182,7 +182,7 @@ module educational_platform::educational_platform {
         let inner = object::uid_to_inner(&course_uid);
         let course = Course {  // Create new course object
             id: course_uid,
-            course_id: 0,  // Initial course ID (to be updated)
+            course_id: inner,  // Initial course ID (to be updated)
             name: name,
             details: details,
             price: price,
@@ -200,7 +200,7 @@ module educational_platform::educational_platform {
         transfer::transfer(cap, sender(ctx));
         transfer::share_object(course);  // Store course details
         event::emit(CourseCreated {  // Emit CourseCreated event
-            course_id: 0,  // Placeholder for actual course ID
+            course_id: inner,  // Placeholder for actual course ID
             creator: creator,
         });
     }
@@ -208,16 +208,14 @@ module educational_platform::educational_platform {
     // Function to enroll a student in a course
     public fun enroll_in_course(
         course: &mut Course,     // Reference to the course to enroll in
-        student: address,        // Address of the student
         payment_coin: &mut Coin<SUI>,  // Payment coin for enrollment
         ctx: &mut TxContext      // Transaction context
     ) {
         assert!(course.listed == true, Error_CourseNotListed);  // Ensure course is listed
         assert!(course.available > 0, Error_Invalid_Supply);  // Ensure course has available seats
-
-        let payment_value = value(payment_coin);  // Get payment amount
+        assert!(payment_coin.value() >= course.price, Error_Insufficient_Payment);  // Ensure payment is sufficient
+        let student = ctx.sender();
         let total_price = course.price;  // Get total price of the course
-        assert!(payment_value >= total_price, Error_Insufficient_Payment);  // Ensure payment is sufficient
 
         course.available = course.available - 1;  // Decrease available seats
         let paid = split(payment_coin, total_price, ctx);  // Split payment
@@ -283,7 +281,7 @@ module educational_platform::educational_platform {
         ctx: &mut TxContext      // Transaction context
     ) {
         assert!(object::id(course) == cap.`for`, Error_Not_owner);
-        
+
         let take_coin = take(&mut course.balance, amount, ctx);  // Take funds from course balance
         transfer::public_transfer(take_coin, recipient);  // Transfer funds to recipient
 
@@ -395,7 +393,7 @@ module educational_platform::educational_platform {
     }
 
     // Function to get details of a course
-    public fun get_course_details(course: &Course) : (u64, String, String, u64, u64, bool, address) {
+    public fun get_course_details(course: &Course) : (ID, String, String, u64, u64, bool, address) {
         (
             course.course_id,
             course.name,
@@ -408,7 +406,7 @@ module educational_platform::educational_platform {
     }
 
     // Function to get details of an enrolled course
-    public fun get_enrolled_course_details(enrolled_course: &EnrolledCourse) : (u64, address) {
+    public fun get_enrolled_course_details(enrolled_course: &EnrolledCourse) : (ID, address) {
         (
             enrolled_course.course_id,
             enrolled_course.student,
