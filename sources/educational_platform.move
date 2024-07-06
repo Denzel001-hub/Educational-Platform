@@ -38,6 +38,11 @@ module educational_platform::educational_platform {
         balance: Balance<SUI>,
     }
 
+    public struct CourseCap has key {
+        id: UID,
+        `for`: ID
+    }
+
     // EnrolledCourse struct definition
     public struct EnrolledCourse has key {
         id: UID,
@@ -173,6 +178,7 @@ module educational_platform::educational_platform {
         assert!(supply > 0, Error_Invalid_Supply);  // Validate supply is positive
 
         let course_uid = new(ctx);  // Generate unique ID for the course
+        let inner = object::uid_to_inner(&course_uid);
         let course = Course {  // Create new course object
             id: course_uid,
             course_id: 0,  // Initial course ID (to be updated)
@@ -186,6 +192,11 @@ module educational_platform::educational_platform {
             balance: zero<SUI>(),  // Initialize balance for course
         };
 
+        let cap = CourseCap {
+            id: new(ctx),
+            `for`: inner
+        };
+        transfer::transfer(cap, sender(ctx));
         transfer::share_object(course);  // Store course details
         event::emit(CourseCreated {  // Emit CourseCreated event
             course_id: 0,  // Placeholder for actual course ID
