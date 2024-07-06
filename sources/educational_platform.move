@@ -14,6 +14,7 @@ module educational_platform::educational_platform {
     const Error_Invalid_Supply: u64 = 7;
     const Error_CourseNotListed: u64 = 8;
     const Error_Not_Enrolled: u64 = 9;
+    const Error_Not_owner: u64 = 0;
 
     // User struct definition
     public struct User has key {
@@ -258,10 +259,12 @@ module educational_platform::educational_platform {
 
     // Function to update details of a course
     public fun update_course_details(
+        cap: &CourseCap,          // Admin Capability
         course: &mut Course,     // Reference to the course to update
         new_details: String, // New course details encoded as UTF-8 bytes
         _ctx: &mut TxContext     // Transaction context
     ) {
+        assert!(object::id(course) == cap.`for`, Error_Not_owner);
         let details_str = new_details;  // Convert bytes to string
         course.details = details_str;  // Update course details
 
@@ -273,11 +276,13 @@ module educational_platform::educational_platform {
 
     // Function to withdraw funds from a course's balance
     public fun withdraw_funds(
+        cap: &CourseCap,          // Admin Capability
         course: &mut Course,     // Reference to the course to withdraw funds from
         amount: u64,             // Amount to withdraw
         recipient: address,      // Address of the recipient
         ctx: &mut TxContext      // Transaction context
     ) {
+        assert!(object::id(course) == cap.`for`, Error_Not_owner);
         assert!(amount > 0 && amount <= balance_value(&course.balance), Error_Invalid_Amount);  // Validate withdrawal amount
 
         let take_coin = take(&mut course.balance, amount, ctx);  // Take funds from course balance
