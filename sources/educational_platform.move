@@ -1,7 +1,7 @@
 module educational_platform::educational_platform {
     use sui::event;
     use sui::sui::SUI;
-    use std::string;
+    use std::string::{String};
     use sui::coin::{Coin, value, split, put, take};
     use sui::object::new;
     use sui::balance::{Balance, zero, value as balance_value};
@@ -18,17 +18,17 @@ module educational_platform::educational_platform {
     // User struct definition
     public struct User has key {
         id: UID,
-        user_name: string::String,
+        user_name: String,
         user_type: u8,
-        public_key: vector<u8>
+        public_key: String
     }
 
     // Course struct definition
     public struct Course has key, store {
         id: UID,
         course_id: u64,
-        name: string::String,
-        details: string::String,
+        name: String,
+        details: String,
         price: u64,
         total_supply: u64,
         available: u64,
@@ -47,8 +47,8 @@ module educational_platform::educational_platform {
     // TutorProfile struct definition
     public struct TutorProfile has key {
         id: UID,
-        tutor_name: string::String,
-        subjects: vector<string::String>,
+        tutor_name: String,
+        subjects: vector<String>,
     }
 
     // TutoringService struct definition
@@ -93,7 +93,7 @@ module educational_platform::educational_platform {
     // CourseUpdated event
     public struct CourseUpdated has copy, drop {
         course_id: u64,
-        new_details: string::String,
+        new_details: String,
     }
 
     // CourseUnlisted event
@@ -110,7 +110,7 @@ module educational_platform::educational_platform {
     // TutorProfileCreated event
     public struct TutorProfileCreated has copy, drop {
         tutor_id: u64,
-        tutor_name: string::String,
+        tutor_name: String,
     }
 
     // TutoringServiceOffered event
@@ -144,15 +144,15 @@ module educational_platform::educational_platform {
 
     // Function to register a new user
     public fun register_user(
-        user_name: vector<u8>,  // Username encoded as UTF-8 bytes
+        user_name: String,  // Username encoded as UTF-8 bytes
         user_type: u8,          // Type of user (e.g., student, tutor)
-        public_key: vector<u8>, // Public key of the user
+        public_key: String, // Public key of the user
         ctx: &mut TxContext     // Transaction context
     ) {
         let user_uid = new(ctx);  // Generate unique ID for the user
         transfer::share_object(User {  // Store user details
             id: user_uid,
-            user_name: string::utf8(user_name),
+            user_name: user_name,
             user_type: user_type,
             public_key: public_key,
         });
@@ -161,8 +161,8 @@ module educational_platform::educational_platform {
     // Function to create a new course
     public fun create_course(
         creator: address,       // Address of the course creator
-        name: vector<u8>,       // Course name encoded as UTF-8 bytes
-        details: vector<u8>,    // Course details encoded as UTF-8 bytes
+        name: String,       // Course name encoded as UTF-8 bytes
+        details: String,    // Course details encoded as UTF-8 bytes
         price: u64,             // Price of the course
         supply: u64,            // Total supply of the course
         ctx: &mut TxContext     // Transaction context
@@ -174,8 +174,8 @@ module educational_platform::educational_platform {
         let course = Course {  // Create new course object
             id: course_uid,
             course_id: 0,  // Initial course ID (to be updated)
-            name: string::utf8(name),
-            details: string::utf8(details),
+            name: name,
+            details: details,
             price: price,
             total_supply: supply,
             available: supply,
@@ -246,10 +246,10 @@ module educational_platform::educational_platform {
     // Function to update details of a course
     public fun update_course_details(
         course: &mut Course,     // Reference to the course to update
-        new_details: vector<u8>, // New course details encoded as UTF-8 bytes
+        new_details: String, // New course details encoded as UTF-8 bytes
         _ctx: &mut TxContext     // Transaction context
     ) {
-        let details_str = string::utf8(new_details);  // Convert bytes to string
+        let details_str = new_details;  // Convert bytes to string
         course.details = details_str;  // Update course details
 
         event::emit(CourseUpdated {  // Emit CourseUpdated event
@@ -278,21 +278,21 @@ module educational_platform::educational_platform {
 
     // Function to create a tutor profile
     public fun create_tutor_profile(
-        tutor_name: vector<u8>,  // Tutor name encoded as UTF-8 bytes
-        subjects: vector<string::String>,  // Subjects taught by the tutor
+        tutor_name: String,  // Tutor name encoded as UTF-8 bytes
+        subjects: vector<String>,  // Subjects taught by the tutor
         ctx: &mut TxContext      // Transaction context
     ) {
         let tutor_uid = new(ctx);  // Generate unique ID for the tutor
         let tutor_id = 0;  // Initial tutor ID (to be updated)
         transfer::share_object(TutorProfile {  // Store tutor profile details
             id: tutor_uid,
-            tutor_name: string::utf8(tutor_name),
+            tutor_name: tutor_name,
             subjects: subjects,
         });
 
         event::emit(TutorProfileCreated {  // Emit TutorProfileCreated event
             tutor_id: tutor_id,
-            tutor_name: string::utf8(tutor_name),
+            tutor_name: tutor_name,
         });
     }
 
@@ -378,7 +378,7 @@ module educational_platform::educational_platform {
     }
 
     // Function to get details of a course
-    public fun get_course_details(course: &Course) : (u64, string::String, string::String, u64, u64, bool, address) {
+    public fun get_course_details(course: &Course) : (u64, String, String, u64, u64, bool, address) {
         (
             course.course_id,
             course.name,
