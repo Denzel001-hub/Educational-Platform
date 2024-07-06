@@ -148,14 +148,13 @@ module educational_platform::educational_platform {
         user_type: u8,          // Type of user (e.g., student, tutor)
         public_key: String, // Public key of the user
         ctx: &mut TxContext     // Transaction context
-    ) {
-        let user_uid = new(ctx);  // Generate unique ID for the user
-        transfer::share_object(User {  // Store user details
-            id: user_uid,
+    ) : User{
+        User {  // Store user details
+            id: new(ctx),
             user_name: user_name,
             user_type: user_type,
             public_key: public_key,
-        });
+        }
     }
 
     // Function to create a new course
