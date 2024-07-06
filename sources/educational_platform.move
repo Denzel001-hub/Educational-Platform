@@ -244,14 +244,13 @@ module educational_platform::educational_platform {
     // Function to mark a course as completed by a student
     public fun complete_course(
         enrolled_course: &EnrolledCourse,  // Reference to the enrolled course
-        student: address,  // Address of the student
         ctx: &mut TxContext  // Transaction context
     ) {
-        assert!(sender(ctx) == student, Error_Not_Enrolled);  // Ensure sender is enrolled student
+        assert!(sender(ctx) == ctx.sender(), Error_Not_Enrolled);  // Ensure sender is enrolled student
 
         event::emit(CourseCompleted {  // Emit CourseCompleted event
             course_id: enrolled_course.course_id,
-            student: student,
+            student: ctx.sender(),
         });
     }
 
