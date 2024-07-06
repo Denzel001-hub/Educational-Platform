@@ -18,6 +18,7 @@ module educational_platform::educational_platform {
     // User struct definition
     public struct User has key {
         id: UID,
+        `for`: ID,
         user_name: String,
         user_type: u8,
         public_key: String
@@ -144,6 +145,7 @@ module educational_platform::educational_platform {
 
     // Function to register a new user
     public fun register_user(
+        self: &Course,
         user_name: String,  // Username encoded as UTF-8 bytes
         user_type: u8,          // Type of user (e.g., student, tutor)
         public_key: String, // Public key of the user
@@ -151,6 +153,7 @@ module educational_platform::educational_platform {
     ) : User{
         User {  // Store user details
             id: new(ctx),
+            `for`: object::id(self),
             user_name: user_name,
             user_type: user_type,
             public_key: public_key,
