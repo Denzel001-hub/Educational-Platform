@@ -36,7 +36,6 @@ module educational_platform::educational_platform {
         price: u64,
         total_supply: u64,
         available: u64,
-        listed: bool,
         creator: address,
         balance: Balance<SUI>,
     }
@@ -191,7 +190,6 @@ module educational_platform::educational_platform {
             price: price,
             total_supply: supply,
             available: supply,
-            listed: true,  // Course is initially listed
             creator: creator,
             balance: zero<SUI>(),  // Initialize balance for course
         };
@@ -214,7 +212,6 @@ module educational_platform::educational_platform {
         payment_coin: &mut Coin<SUI>,  // Payment coin for enrollment
         ctx: &mut TxContext      // Transaction context
     ) {
-        assert!(course.listed == true, Error_CourseNotListed);  // Ensure course is listed
         assert!(course.available > 0, Error_Invalid_Supply);  // Ensure course has available seats
         assert!(payment_coin.value() >= course.price, Error_Insufficient_Payment);  // Ensure payment is sufficient
         let student = ctx.sender();
@@ -237,7 +234,6 @@ module educational_platform::educational_platform {
         });
 
         if (course.available == 0) {  // If no seats available, unlist course
-            course.listed = false;
             event::emit(CourseUnlisted {
                 course_id: course.course_id,
             });
@@ -396,14 +392,13 @@ module educational_platform::educational_platform {
     }
 
     // Function to get details of a course
-    public fun get_course_details(course: &Course) : (ID, String, String, u64, u64, bool, address) {
+    public fun get_course_details(course: &Course) : (ID, String, String, u64, u64, address) {
         (
             course.course_id,
             course.name,
             course.details,
             course.price,
             course.total_supply,
-            course.listed,
             course.creator,
         )
     }
