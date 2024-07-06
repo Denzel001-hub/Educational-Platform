@@ -212,6 +212,7 @@ module educational_platform::educational_platform {
         payment_coin: &mut Coin<SUI>,  // Payment coin for enrollment
         ctx: &mut TxContext      // Transaction context
     ) {
+        assert!(!table::contains(&course.students, ctx.sender()), Error_CourseNotListed); // SHOULD be return false !!!!
         assert!(course.available > 0, Error_Invalid_Supply);  // Ensure course has available seats
         assert!(payment_coin.value() >= course.price, Error_Insufficient_Payment);  // Ensure payment is sufficient
         let student = ctx.sender();
