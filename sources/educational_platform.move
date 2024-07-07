@@ -1,11 +1,12 @@
 module educational_platform::educational_platform {
     use sui::event;
     use sui::sui::SUI;
-    use std::string;
+    use std::string::{String};
     use sui::coin::{Coin, value, split, put, take};
     use sui::object::new;
     use sui::balance::{Balance, zero, value as balance_value};
     use sui::tx_context::sender;
+    use sui::table::{Self, Table};
 
     // Constants for error codes
     const Error_Invalid_Amount: u64 = 2;
@@ -14,41 +15,48 @@ module educational_platform::educational_platform {
     const Error_Invalid_Supply: u64 = 7;
     const Error_CourseNotListed: u64 = 8;
     const Error_Not_Enrolled: u64 = 9;
+    const Error_Not_owner: u64 = 0;
 
     // User struct definition
     public struct User has key {
         id: UID,
-        user_name: string::String,
+        `for`: ID,
+        user_name: String,
         user_type: u8,
-        public_key: vector<u8>
+        public_key: String
     }
 
     // Course struct definition
     public struct Course has key, store {
         id: UID,
-        course_id: u64,
-        name: string::String,
-        details: string::String,
+        course_id: ID,
+        students: Table<address, bool>,
+        name: String,
+        details: String,
         price: u64,
         total_supply: u64,
         available: u64,
-        listed: bool,
         creator: address,
         balance: Balance<SUI>,
+    }
+
+    public struct CourseCap has key {
+        id: UID,
+        `for`: ID
     }
 
     // EnrolledCourse struct definition
     public struct EnrolledCourse has key {
         id: UID,
-        course_id: u64,
+        course_id: ID,
         student: address
     }
 
     // TutorProfile struct definition
     public struct TutorProfile has key {
         id: UID,
-        tutor_name: string::String,
-        subjects: vector<string::String>,
+        tutor_name: String,
+        subjects: vector<String>,
     }
 
     // TutoringService struct definition
@@ -74,31 +82,31 @@ module educational_platform::educational_platform {
 
     // CourseCreated event
     public struct CourseCreated has copy, drop {
-        course_id: u64,
+        course_id: ID,
         creator: address,
     }
 
     // CourseEnrolled event
     public struct CourseEnrolled has copy, drop {
-        course_id: u64,
+        course_id: ID,
         student: address,
     }
 
     // CourseCompleted event
     public struct CourseCompleted has copy, drop {
-        course_id: u64,
+        course_id: ID,
         student: address,
     }
 
     // CourseUpdated event
     public struct CourseUpdated has copy, drop {
-        course_id: u64,
-        new_details: string::String,
+        course_id: ID,
+        new_details: String,
     }
 
     // CourseUnlisted event
     public struct CourseUnlisted has copy, drop {
-        course_id: u64,
+        course_id: ID,
     }
 
     // FundWithdrawal event
@@ -110,7 +118,7 @@ module educational_platform::educational_platform {
     // TutorProfileCreated event
     public struct TutorProfileCreated has copy, drop {
         tutor_id: u64,
-        tutor_name: string::String,
+        tutor_name: String,
     }
 
     // TutoringServiceOffered event
@@ -144,25 +152,26 @@ module educational_platform::educational_platform {
 
     // Function to register a new user
     public fun register_user(
-        user_name: vector<u8>,  // Username encoded as UTF-8 bytes
+        self: &Course,
+        user_name: String,  // Username encoded as UTF-8 bytes
         user_type: u8,          // Type of user (e.g., student, tutor)
-        public_key: vector<u8>, // Public key of the user
+        public_key: String, // Public key of the user
         ctx: &mut TxContext     // Transaction context
-    ) {
-        let user_uid = new(ctx);  // Generate unique ID for the user
-        transfer::share_object(User {  // Store user details
-            id: user_uid,
-            user_name: string::utf8(user_name),
+    ) : User{
+        User {  // Store user details
+            id: new(ctx),
+            `for`: object::id(self),
+            user_name: user_name,
             user_type: user_type,
             public_key: public_key,
-        });
+        }
     }
 
     // Function to create a new course
     public fun create_course(
         creator: address,       // Address of the course creator
-        name: vector<u8>,       // Course name encoded as UTF-8 bytes
-        details: vector<u8>,    // Course details encoded as UTF-8 bytes
+        name: String,       // Course name encoded as UTF-8 bytes
+        details: String,    // Course details encoded as UTF-8 bytes
         price: u64,             // Price of the course
         supply: u64,            // Total supply of the course
         ctx: &mut TxContext     // Transaction context
@@ -171,22 +180,28 @@ module educational_platform::educational_platform {
         assert!(supply > 0, Error_Invalid_Supply);  // Validate supply is positive
 
         let course_uid = new(ctx);  // Generate unique ID for the course
+        let inner = object::uid_to_inner(&course_uid);
         let course = Course {  // Create new course object
             id: course_uid,
-            course_id: 0,  // Initial course ID (to be updated)
-            name: string::utf8(name),
-            details: string::utf8(details),
+            course_id: inner,  // Initial course ID (to be updated)
+            students: table::new(ctx),
+            name: name,
+            details: details,
             price: price,
             total_supply: supply,
             available: supply,
-            listed: true,  // Course is initially listed
             creator: creator,
             balance: zero<SUI>(),  // Initialize balance for course
         };
 
+        let cap = CourseCap {
+            id: new(ctx),
+            `for`: inner
+        };
+        transfer::transfer(cap, sender(ctx));
         transfer::share_object(course);  // Store course details
         event::emit(CourseCreated {  // Emit CourseCreated event
-            course_id: 0,  // Placeholder for actual course ID
+            course_id: inner,  // Placeholder for actual course ID
             creator: creator,
         });
     }
@@ -194,16 +209,14 @@ module educational_platform::educational_platform {
     // Function to enroll a student in a course
     public fun enroll_in_course(
         course: &mut Course,     // Reference to the course to enroll in
-        student: address,        // Address of the student
         payment_coin: &mut Coin<SUI>,  // Payment coin for enrollment
         ctx: &mut TxContext      // Transaction context
     ) {
-        assert!(course.listed == true, Error_CourseNotListed);  // Ensure course is listed
+        assert!(!table::contains(&course.students, ctx.sender()), Error_CourseNotListed); // SHOULD be return false !!!!
         assert!(course.available > 0, Error_Invalid_Supply);  // Ensure course has available seats
-
-        let payment_value = value(payment_coin);  // Get payment amount
+        assert!(payment_coin.value() >= course.price, Error_Insufficient_Payment);  // Ensure payment is sufficient
+        let student = ctx.sender();
         let total_price = course.price;  // Get total price of the course
-        assert!(payment_value >= total_price, Error_Insufficient_Payment);  // Ensure payment is sufficient
 
         course.available = course.available - 1;  // Decrease available seats
         let paid = split(payment_coin, total_price, ctx);  // Split payment
@@ -222,7 +235,6 @@ module educational_platform::educational_platform {
         });
 
         if (course.available == 0) {  // If no seats available, unlist course
-            course.listed = false;
             event::emit(CourseUnlisted {
                 course_id: course.course_id,
             });
@@ -232,24 +244,25 @@ module educational_platform::educational_platform {
     // Function to mark a course as completed by a student
     public fun complete_course(
         enrolled_course: &EnrolledCourse,  // Reference to the enrolled course
-        student: address,  // Address of the student
         ctx: &mut TxContext  // Transaction context
     ) {
-        assert!(sender(ctx) == student, Error_Not_Enrolled);  // Ensure sender is enrolled student
+        assert!(sender(ctx) == ctx.sender(), Error_Not_Enrolled);  // Ensure sender is enrolled student
 
         event::emit(CourseCompleted {  // Emit CourseCompleted event
             course_id: enrolled_course.course_id,
-            student: student,
+            student: ctx.sender(),
         });
     }
 
     // Function to update details of a course
     public fun update_course_details(
+        cap: &CourseCap,          // Admin Capability
         course: &mut Course,     // Reference to the course to update
-        new_details: vector<u8>, // New course details encoded as UTF-8 bytes
+        new_details: String, // New course details encoded as UTF-8 bytes
         _ctx: &mut TxContext     // Transaction context
     ) {
-        let details_str = string::utf8(new_details);  // Convert bytes to string
+        assert!(object::id(course) == cap.`for`, Error_Not_owner);
+        let details_str = new_details;  // Convert bytes to string
         course.details = details_str;  // Update course details
 
         event::emit(CourseUpdated {  // Emit CourseUpdated event
@@ -260,12 +273,13 @@ module educational_platform::educational_platform {
 
     // Function to withdraw funds from a course's balance
     public fun withdraw_funds(
+        cap: &CourseCap,          // Admin Capability
         course: &mut Course,     // Reference to the course to withdraw funds from
         amount: u64,             // Amount to withdraw
         recipient: address,      // Address of the recipient
         ctx: &mut TxContext      // Transaction context
     ) {
-        assert!(amount > 0 && amount <= balance_value(&course.balance), Error_Invalid_Amount);  // Validate withdrawal amount
+        assert!(object::id(course) == cap.`for`, Error_Not_owner);
 
         let take_coin = take(&mut course.balance, amount, ctx);  // Take funds from course balance
         transfer::public_transfer(take_coin, recipient);  // Transfer funds to recipient
@@ -278,21 +292,21 @@ module educational_platform::educational_platform {
 
     // Function to create a tutor profile
     public fun create_tutor_profile(
-        tutor_name: vector<u8>,  // Tutor name encoded as UTF-8 bytes
-        subjects: vector<string::String>,  // Subjects taught by the tutor
+        tutor_name: String,  // Tutor name encoded as UTF-8 bytes
+        subjects: vector<String>,  // Subjects taught by the tutor
         ctx: &mut TxContext      // Transaction context
     ) {
         let tutor_uid = new(ctx);  // Generate unique ID for the tutor
         let tutor_id = 0;  // Initial tutor ID (to be updated)
         transfer::share_object(TutorProfile {  // Store tutor profile details
             id: tutor_uid,
-            tutor_name: string::utf8(tutor_name),
+            tutor_name: tutor_name,
             subjects: subjects,
         });
 
         event::emit(TutorProfileCreated {  // Emit TutorProfileCreated event
             tutor_id: tutor_id,
-            tutor_name: string::utf8(tutor_name),
+            tutor_name: tutor_name,
         });
     }
 
@@ -378,20 +392,19 @@ module educational_platform::educational_platform {
     }
 
     // Function to get details of a course
-    public fun get_course_details(course: &Course) : (u64, string::String, string::String, u64, u64, bool, address) {
+    public fun get_course_details(course: &Course) : (ID, String, String, u64, u64, address) {
         (
             course.course_id,
             course.name,
             course.details,
             course.price,
             course.total_supply,
-            course.listed,
             course.creator,
         )
     }
 
     // Function to get details of an enrolled course
-    public fun get_enrolled_course_details(enrolled_course: &EnrolledCourse) : (u64, address) {
+    public fun get_enrolled_course_details(enrolled_course: &EnrolledCourse) : (ID, address) {
         (
             enrolled_course.course_id,
             enrolled_course.student,

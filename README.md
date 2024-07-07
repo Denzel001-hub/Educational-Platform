@@ -47,9 +47,9 @@ This library can be integrated into your Sui Move projects to implement a secure
 #### Registering Users
 
 public fun register_user(
-    user_name: vector<u8>,  
+    user_name: String,  
     user_type: u8,         
-    public_key: vector<u8>, 
+    public_key: String, 
     ctx: &mut TxContext     
 )
 
@@ -59,8 +59,8 @@ public fun register_user(
 
 public fun create_course(
     creator: address,       
-    name: vector<u8>,       
-    details: vector<u8>,    
+    name: String,       
+    details: String,    
     price: u64,             
     supply: u64,            
     ctx: &mut TxContext     
@@ -93,7 +93,7 @@ public fun complete_course(
 
 public fun update_course_details(
     course: &mut Course,     
-    new_details: vector<u8>, 
+    new_details: String, 
     _ctx: &mut TxContext     
 )
 
@@ -113,8 +113,8 @@ public fun withdraw_funds(
 #### Creating Tutor Profiles
 
 public fun create_tutor_profile(
-    tutor_name: vector<u8>,  
-    subjects: vector<string::String>,  
+    tutor_name: String,  
+    subjects: vector<String>,  
     ctx: &mut TxContext      
 )
 
@@ -164,7 +164,7 @@ public fun update_tutoring_service(
 
 #### Retrieving Course Details
 
-public fun get_course_details(course: &Course) : (u64, string::String, string::String, u64, u64, bool, address)
+public fun get_course_details(course: &Course) : (u64, String, String, u64, u64, bool, address)
 
 - Retrieves details of a specified course.
 
