@@ -3,10 +3,11 @@ module educational_platform::educational_platform {
     use sui::sui::SUI;
     use std::string::{String};
     use sui::coin::{Coin, value, split, put, take};
-    use sui::object::new;
-    use sui::balance::{Balance, zero, value as balance_value};
-    use sui::tx_context::sender;
+    use sui::object::{Self, UID, ID, new, uid_to_inner};
+    use sui::balance::{Balance, zero};
+    use sui::tx_context::{Self, TxContext, sender};
     use sui::table::{Self, Table};
+    use sui::transfer;
 
     // Constants for error codes
     const Error_Invalid_Amount: u64 = 2;
@@ -15,7 +16,7 @@ module educational_platform::educational_platform {
     const Error_Invalid_Supply: u64 = 7;
     const Error_CourseNotListed: u64 = 8;
     const Error_Not_Enrolled: u64 = 9;
-    const Error_Not_owner: u64 = 0;
+    const Error_Not_Owner: u64 = 0;
 
     // User struct definition
     public struct User has key {
@@ -152,15 +153,14 @@ module educational_platform::educational_platform {
 
     // Function to register a new user
     public fun register_user(
-        self: &Course,
         user_name: String,  // Username encoded as UTF-8 bytes
         user_type: u8,          // Type of user (e.g., student, tutor)
         public_key: String, // Public key of the user
         ctx: &mut TxContext     // Transaction context
-    ) : User{
+    ) : User {
         User {  // Store user details
             id: new(ctx),
-            `for`: object::id(self),
+            `for`: sender(ctx),
             user_name: user_name,
             user_type: user_type,
             public_key: public_key,
@@ -180,11 +180,11 @@ module educational_platform::educational_platform {
         assert!(supply > 0, Error_Invalid_Supply);  // Validate supply is positive
 
         let course_uid = new(ctx);  // Generate unique ID for the course
-        let inner = object::uid_to_inner(&course_uid);
+        let inner = uid_to_inner(&course_uid);
         let course = Course {  // Create new course object
             id: course_uid,
             course_id: inner,  // Initial course ID (to be updated)
-            students: table::new(ctx),
+            students: Table::new(ctx),
             name: name,
             details: details,
             price: price,
@@ -209,18 +209,19 @@ module educational_platform::educational_platform {
     // Function to enroll a student in a course
     public fun enroll_in_course(
         course: &mut Course,     // Reference to the course to enroll in
-        payment_coin: &mut Coin<SUI>,  // Payment coin for enrollment
+        payment_coin: Coin<SUI>,  // Payment coin for enrollment
         ctx: &mut TxContext      // Transaction context
     ) {
-        assert!(!table::contains(&course.students, ctx.sender()), Error_CourseNotListed); // SHOULD be return false !!!!
+        assert!(table::contains(&course.students, ctx.sender()), Error_Not_Enrolled);
         assert!(course.available > 0, Error_Invalid_Supply);  // Ensure course has available seats
-        assert!(payment_coin.value() >= course.price, Error_Insufficient_Payment);  // Ensure payment is sufficient
+        assert!(value(&payment_coin) >= course.price, Error_Insufficient_Payment);  // Ensure payment is sufficient
         let student = ctx.sender();
         let total_price = course.price;  // Get total price of the course
 
         course.available = course.available - 1;  // Decrease available seats
         let paid = split(payment_coin, total_price, ctx);  // Split payment
         put(&mut course.balance, paid);  // Add payment to course balance
+        table::insert(&mut course.students, student, true);
 
         let enrolled_course_uid = new(ctx);  // Generate unique ID for enrolled course
         transfer::transfer(EnrolledCourse {  // Transfer enrollment details
@@ -246,7 +247,7 @@ module educational_platform::educational_platform {
         enrolled_course: &EnrolledCourse,  // Reference to the enrolled course
         ctx: &mut TxContext  // Transaction context
     ) {
-        assert!(sender(ctx) == ctx.sender(), Error_Not_Enrolled);  // Ensure sender is enrolled student
+        assert!(enrolled_course.student == ctx.sender(), Error_Not_Enrolled);  // Ensure sender is enrolled student
 
         event::emit(CourseCompleted {  // Emit CourseCompleted event
             course_id: enrolled_course.course_id,
@@ -261,7 +262,7 @@ module educational_platform::educational_platform {
         new_details: String, // New course details encoded as UTF-8 bytes
         _ctx: &mut TxContext     // Transaction context
     ) {
-        assert!(object::id(course) == cap.`for`, Error_Not_owner);
+        assert!(uid_to_inner(&course.id) == cap.`for`, Error_Not_Owner);
         let details_str = new_details;  // Convert bytes to string
         course.details = details_str;  // Update course details
 
@@ -279,7 +280,7 @@ module educational_platform::educational_platform {
         recipient: address,      // Address of the recipient
         ctx: &mut TxContext      // Transaction context
     ) {
-        assert!(object::id(course) == cap.`for`, Error_Not_owner);
+        assert!(uid_to_inner(&course.id) == cap.`for`, Error_Not_Owner);
 
         let take_coin = take(&mut course.balance, amount, ctx);  // Take funds from course balance
         transfer::public_transfer(take_coin, recipient);  // Transfer funds to recipient
@@ -297,7 +298,6 @@ module educational_platform::educational_platform {
         ctx: &mut TxContext      // Transaction context
     ) {
         let tutor_uid = new(ctx);  // Generate unique ID for the tutor
-        let tutor_id = 0;  // Initial tutor ID (to be updated)
         transfer::share_object(TutorProfile {  // Store tutor profile details
             id: tutor_uid,
             tutor_name: tutor_name,
@@ -305,7 +305,7 @@ module educational_platform::educational_platform {
         });
 
         event::emit(TutorProfileCreated {  // Emit TutorProfileCreated event
-            tutor_id: tutor_id,
+            tutor_id: uid_to_inner(&tutor_uid),
             tutor_name: tutor_name,
         });
     }
@@ -340,18 +340,17 @@ module educational_platform::educational_platform {
         ctx: &mut TxContext      // Transaction context
     ) {
         let session_uid = new(ctx);  // Generate unique ID for tutoring session
-        let session_id = 0;  // Initial session ID (to be updated)
         transfer::share_object(TutoringSession {  // Store tutoring session details
             id: session_uid,
             tutor_id: tutor_id,
             student: student,
-            session_id: session_id,
+            session_id: uid_to_inner(&session_uid),
             completed: false,
             rating: 0,
         });
 
         event::emit(TutoringSessionRequested {  // Emit TutoringSessionRequested event
-            session_id: session_id,
+            session_id: uid_to_inner(&session_uid),
             tutor_id: tutor_id,
             student: student,
         });
